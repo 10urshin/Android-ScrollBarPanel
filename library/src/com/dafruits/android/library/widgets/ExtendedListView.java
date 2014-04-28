@@ -3,7 +3,7 @@ package com.dafruits.android.library.widgets;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
-import android.os.Handler;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -36,7 +36,10 @@ public class ExtendedListView extends ListView implements OnScrollListener {
 	private Animation mInAnimation = null;
 	private Animation mOutAnimation = null;
 
-	private final Handler mHandler = new Handler();
+	//edit: removed handler. We don't need an extra Handler, we can use View.postDelayed() directly
+
+    	//keep last position of the panel, so we won't need to calculate it again in onOverScrolled()
+    	private int lastLeft, lastTop, lastRight, lastBottom;
 
 	private final Runnable mScrollBarPanelFadeRunnable = new Runnable() {
 
@@ -116,6 +119,15 @@ public class ExtendedListView extends ListView implements OnScrollListener {
 	}
 
 	@Override
+	protected void onOverScrolled(int scrollX, int scrollY, boolean clampedX, boolean clampedY) {
+		if (null != mScrollBarPanel) {
+			mScrollBarPanel.layout(lastLeft, lastTop + scrollY, lastRight, lastBottom + scrollY);
+	        }
+		super.onOverScrolled(scrollX, scrollY, clampedX, clampedY);
+    	}
+
+
+	@Override
 	public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
 		if (null != mPositionChangedListener && null != mScrollBarPanel) {
 
@@ -170,8 +182,18 @@ public class ExtendedListView extends ListView implements OnScrollListener {
 				 */
 				mScrollBarPanelPosition = thumbOffset - mScrollBarPanel.getMeasuredHeight() / 2;
 				final int x = getMeasuredWidth() - mScrollBarPanel.getMeasuredWidth() - getVerticalScrollbarWidth();
-				mScrollBarPanel.layout(x, mScrollBarPanelPosition, x + mScrollBarPanel.getMeasuredWidth(),
-						mScrollBarPanelPosition + mScrollBarPanel.getMeasuredHeight());
+				
+				
+		                //make sure panel always stays visible
+		                mScrollBarPanelPosition = Math.max(1, mScrollBarPanelPosition);
+		                mScrollBarPanelPosition = Math.min(getMeasuredHeight() - mScrollBarPanel.getMeasuredHeight() - 1, mScrollBarPanelPosition);
+		
+		                lastLeft = x;
+		                lastTop = mScrollBarPanelPosition;
+		                lastRight = x + mScrollBarPanel.getMeasuredWidth();
+		                lastBottom = mScrollBarPanelPosition + mScrollBarPanel.getMeasuredHeight();
+		
+		                mScrollBarPanel.layout(lastLeft, lastTop, lastRight, lastBottom);
 			}
 		}
 
@@ -215,8 +237,9 @@ public class ExtendedListView extends ListView implements OnScrollListener {
 				}
 			}
 			
-			mHandler.removeCallbacks(mScrollBarPanelFadeRunnable);
-			mHandler.postAtTime(mScrollBarPanelFadeRunnable, AnimationUtils.currentAnimationTimeMillis() + startDelay);
+			//Handler is not needed
+			this.removeCallbacks(mScrollBarPanelFadeRunnable);
+		        this.postDelayed(mScrollBarPanelFadeRunnable, AnimationUtils.currentAnimationTimeMillis() + startDelay - SystemClock.uptimeMillis());
 		}
 
 		return isAnimationPlayed;
@@ -257,6 +280,6 @@ public class ExtendedListView extends ListView implements OnScrollListener {
 	public void onDetachedFromWindow() {
 		super.onDetachedFromWindow();
 
-		mHandler.removeCallbacks(mScrollBarPanelFadeRunnable);
+        	this.removeCallbacks(mScrollBarPanelFadeRunnable);
 	}
 }
